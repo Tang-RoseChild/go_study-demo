@@ -1,0 +1,9 @@
+package msgproto;
+
+message Msg
+{
+	required int32 id=1;
+	required string content=2;
+	required string topic=3;
+
+}
