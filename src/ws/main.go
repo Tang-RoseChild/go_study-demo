@@ -1,14 +1,17 @@
 package main
 
+import proto "github.com/golang/protobuf/proto"
 import (
 	// "fmt"
-	"io"
+	// "io"
 	"log"
 	"net/http"
 
 	"html/template"
 
 	"golang.org/x/net/websocket"
+
+	"pb"
 )
 
 func main() {
@@ -32,16 +35,27 @@ func index(w http.ResponseWriter, r *http.Request) {
 func WSServer(ws *websocket.Conn) {
 	defer ws.Close()
 	log.Printf("connected : %s \n", ws.Request().RemoteAddr)
-	var msg string
+	var msg []byte
+	pbMsg := &pb.Helloworld{}
+	// msg = make([]byte, 1<<10)
 	for {
 		err := websocket.Message.Receive(ws, &msg)
 		CheckErr("Msg Receive", err)
-		log.Printf("received : %s", msg)
+		log.Printf("received : %v", msg)
+		if err != nil {
+			log.Printf("error %s , close connection\n", err.Error())
+			break
+		}
 
-		err = websocket.Message.Send(ws, "sendback "+msg)
-		CheckErr("Msg SendBack", err)
-		if err == io.EOF {
-			log.Println("EOF, close connection")
+		//Unmarshal through protobuf
+		err = proto.Unmarshal(msg, pbMsg)
+		CheckErr("proto Unmarshal ", err)
+		log.Printf("after Unmarshal : %v data : %d,%s\n", pbMsg, pbMsg.GetId(), pbMsg.GetStr())
+
+		// err = websocket.Message.Send(ws, "sendback "+msg)
+		// CheckErr("Msg SendBack", err)
+		if err != nil {
+			log.Printf("error %s , close connection\n", err.Error())
 			break
 		}
 	}
