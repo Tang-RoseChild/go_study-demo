@@ -36,7 +36,7 @@
 	};
 
 	$("#send").click(function(){
-		ws.send($("#input").text())
+		ws.send($("#input").val())
 		console.log("ws send : "+$("#input").val())
 	});
 </script>
