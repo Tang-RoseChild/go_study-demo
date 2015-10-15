@@ -4,15 +4,18 @@ import (
 	"chat/server"
 
 	"chat/msgproto"
-	proto "github.com/golang/protobuf/proto"
+	// proto "github.com/golang/protobuf/proto"
 	"golang.org/x/net/websocket"
 
 	"log"
 
 	"bufio"
-	"io"
+	"fmt"
+	// "io"
 	"math/rand"
 	"os"
+	// "strconv"
+	"strings"
 	"time"
 )
 
@@ -21,6 +24,7 @@ var msgCodec websocket.Codec
 var (
 	userInputChan   chan []byte
 	serverInputChan chan *msgproto.Msg
+	id              int32
 )
 
 func init() {
@@ -40,15 +44,17 @@ func main() {
 	checkErr("Dial", err)
 
 	rand.Seed(int64(time.Now().Nanosecond()))
-	id := rand.Int31n(1001)
-	pbMsg := &msgproto.Msg{
-		Id:      proto.Int32(id),
-		Topic:   proto.String(""),
-		Content: proto.String("hello"),
-		Type:    proto.Int32(int32(server.CONNECT)),
-	}
-	err = msgCodec.Send(ws, pbMsg)
-	checkErr("send", err)
+	id = rand.Int31n(1001)
+	// pbMsg := &msgproto.Msg{
+	// 	Id:      proto.Int32(id),
+	// 	Topic:   proto.String(""),
+	// 	Content: proto.String("hello"),
+	// 	Type:    proto.Int32(int32(server.CONNECT)),
+	// }
+	// err = msgCodec.Send(ws, pbMsg)
+	// checkErr("send", err)
+	go userInput(userInputChan)
+	go serverInput(ws, serverInputChan)
 	for {
 
 		// fromServerMsg := &msgproto.Msg{}
@@ -56,6 +62,16 @@ func main() {
 		// checkErr("receive", err)
 
 		// log.Printf("received : %s,  \n", fromServerMsg.GetContent())
+		select {
+		case usercontent := <-userInputChan:
+			// handle use input msg
+			handleUserInputMsg(ws, usercontent)
+		case servercontent := <-serverInputChan:
+			handlerServerInputMsg(servercontent)
+		default:
+			time.Sleep(2 * time.Second)
+
+		}
 	}
 
 }
@@ -70,14 +86,14 @@ func userInput(userinput chan []byte) {
 	}
 }
 
-func serverInput(ws *websockte.Conn, serverinput chan *msgproto.Msg) {
+func serverInput(ws *websocket.Conn, serverinput chan *msgproto.Msg) {
 	msg := &msgproto.Msg{}
 	for {
-		err = msgCodec.Receive(ws, msg)
+		err := msgCodec.Receive(ws, msg)
 		if err == nil {
 			break
 		}
-		serverinput <- msgCodec
+		serverinput <- msg
 	}
 }
 
@@ -85,5 +101,36 @@ func serverInput(ws *websockte.Conn, serverinput chan *msgproto.Msg) {
 func checkErr(key string, err error) {
 	if err != nil {
 		log.Printf("%s err occur : %s ", key, err.Error())
+	}
+}
+
+func handleUserInputMsg(ws *websocket.Conn, msg []byte) {
+	// login
+	if string(msg[:len("login")]) == "login" {
+
+		pbMsg := server.PbMsgFactory(id, "", "", int32(server.LOGIN))
+		err := msgCodec.Send(ws, pbMsg)
+		checkErr("send in handleUserInputMsg", err)
+
+	}
+	// if connect XXX
+	if string(msg[:len("connect")]) == "connect" {
+		topic := strings.TrimSpace(string(msg[len("connect"):]))
+		pbMsg := server.PbMsgFactory(id, topic, "", int32(server.CONNECT))
+		err := msgCodec.Send(ws, pbMsg)
+		checkErr("send in handleUserInputMsg", err)
+
+	}
+	// test connect first
+}
+
+func handlerServerInputMsg(msg *msgproto.Msg) {
+	switch server.MsgType(msg.GetType()) {
+	case server.LOGIN:
+		fmt.Print(msg.GetContent())
+	case server.CONNECT:
+		fmt.Println(msg.GetContent())
+	default:
+		log.Println("error, msg type wrong in handlerServerInputMsg ")
 	}
 }

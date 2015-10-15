@@ -15,8 +15,9 @@ import (
 type MsgType int32
 
 const (
-	_               = iota
-	CONNECT MsgType = iota
+	_             = iota
+	LOGIN MsgType = iota
+	CONNECT
 	DISCONNECT
 	MSG_CONTENT
 )
@@ -81,19 +82,25 @@ func wsserver(ws *websocket.Conn) {
 }
 
 func handleMsg(msg msgproto.Msg, ws *websocket.Conn) {
+	log.Printf("msg received : id : %d, type : %d \n", msg.GetId(), msg.GetType())
 	switch MsgType(msg.GetType()) {
-	case CONNECT:
+	case LOGIN:
 		// send all clients
 		var msgcontent = "clients: \n"
 		for key, _ := range clients {
 			msgcontent += strconv.Itoa(int(key)) + "\n"
 		}
-		pbMsg := &msgproto.Msg{
-			Id:      proto.Int32(msg.GetId()),
-			Topic:   proto.String(msg.GetTopic()),
-			Content: proto.String(msgcontent),
-			Type:    proto.Int32(msg.GetType()),
-		}
+		// pbMsg := &msgproto.Msg{
+		// 	Id:      proto.Int32(msg.GetId()),
+		// 	Topic:   proto.String(msg.GetTopic()),
+		// 	Content: proto.String(msgcontent),
+		// 	Type:    proto.Int32(msg.GetType()),
+		// }
+		pbMsg := PbMsgFactory(msg.GetId(), msg.GetTopic(), msgcontent, msg.GetType())
+
+		msgCodec.Send(ws, pbMsg)
+	case CONNECT:
+		pbMsg := PbMsgFactory(msg.GetId(), msg.GetTopic(), "connected, start to talk", msg.GetType())
 
 		msgCodec.Send(ws, pbMsg)
 	case MSG_CONTENT:
@@ -103,12 +110,13 @@ func handleMsg(msg msgproto.Msg, ws *websocket.Conn) {
 		// find the client in the clients and send the data
 		// proto no setter,just get
 		toClient := clients[int32(id)]
-		pbMsg := &msgproto.Msg{
-			Id:      proto.Int32(int32(id)),
-			Topic:   proto.String(strconv.Itoa(int(msg.GetId()))),
-			Content: proto.String(msg.GetContent()),
-			Type:    proto.Int32(msg.GetType()),
-		}
+		// pbMsg := &msgproto.Msg{
+		// 	Id:      proto.Int32(int32(id)),
+		// 	Topic:   proto.String(strconv.Itoa(int(msg.GetId()))),
+		// 	Content: proto.String(msg.GetContent()),
+		// 	Type:    proto.Int32(msg.GetType()),
+		// }
+		pbMsg := PbMsgFactory(int32(id), strconv.Itoa(int(msg.GetId())), msg.GetContent(), msg.GetType())
 
 		err = msgCodec.Send(toClient, pbMsg)
 		checkErr("Send at MSG_CONTENT case of handleMsg", err)
@@ -167,4 +175,14 @@ func PbUnmarshal(data []byte, payloadType byte, v interface{}) (err error) {
 
 	err = proto.Unmarshal(data, pb)
 	return
+}
+
+// PbMsgFactory: create msg by given params
+func PbMsgFactory(Id int32, Topic string, Content string, Type int32) *msgproto.Msg {
+	return &msgproto.Msg{
+		Id:      proto.Int32(Id),
+		Topic:   proto.String(Topic),
+		Content: proto.String(Content),
+		Type:    proto.Int32(Type),
+	}
 }
