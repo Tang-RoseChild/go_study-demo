@@ -98,11 +98,14 @@ func handleMsg(msg msgproto.Msg, ws *websocket.Conn) {
 		// }
 		pbMsg := PbMsgFactory(msg.GetId(), msg.GetTopic(), msgcontent, msg.GetType())
 
-		msgCodec.Send(ws, pbMsg)
+		err := msgCodec.Send(ws, pbMsg)
+		checkErr("Send at LOGIN in handleMsg", err)
+		log.Printf("Login send : %s %v\n", msgcontent, clients)
 	case CONNECT:
 		pbMsg := PbMsgFactory(msg.GetId(), msg.GetTopic(), "connected, start to talk", msg.GetType())
 
-		msgCodec.Send(ws, pbMsg)
+		err := msgCodec.Send(ws, pbMsg)
+		checkErr("Send at CONNECT in handleMsg", err)
 	case MSG_CONTENT:
 		// here topic is another id
 		id, err := strconv.Atoi(msg.GetTopic())

@@ -76,24 +76,26 @@ func main() {
 
 }
 
-func userInput(userinput chan []byte) {
+func userInput(userinputchan chan []byte) {
 
 	for {
 		bufReader := bufio.NewReader(os.Stdin)
 		msg, err := bufReader.ReadSlice('\n')
 		checkErr("readslice in handle Input", err)
-		userinput <- msg
+		userinputchan <- msg
 	}
 }
 
-func serverInput(ws *websocket.Conn, serverinput chan *msgproto.Msg) {
+func serverInput(ws *websocket.Conn, serverinputchan chan *msgproto.Msg) {
 	msg := &msgproto.Msg{}
 	for {
 		err := msgCodec.Receive(ws, msg)
-		if err == nil {
+		checkErr("Receive", err)
+		if err != nil {
 			break
 		}
-		serverinput <- msg
+		serverinputchan <- msg
+		// fmt.Printf("recevied msg from server : %s \n", msg.GetContent())
 	}
 }
 
@@ -119,12 +121,12 @@ func handleUserInputMsg(ws *websocket.Conn, msg []byte) {
 		pbMsg := server.PbMsgFactory(id, topic, "", int32(server.CONNECT))
 		err := msgCodec.Send(ws, pbMsg)
 		checkErr("send in handleUserInputMsg", err)
-
 	}
 	// test connect first
 }
 
 func handlerServerInputMsg(msg *msgproto.Msg) {
+
 	switch server.MsgType(msg.GetType()) {
 	case server.LOGIN:
 		fmt.Print(msg.GetContent())
