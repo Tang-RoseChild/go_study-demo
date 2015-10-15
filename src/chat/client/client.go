@@ -69,8 +69,6 @@ func main() {
 			handleUserInputMsg(ws, usercontent)
 		case servercontent := <-serverInputChan:
 			handlerServerInputMsg(servercontent)
-		default:
-			time.Sleep(2 * time.Second)
 
 		}
 	}
