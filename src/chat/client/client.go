@@ -25,6 +25,7 @@ var (
 	userInputChan   chan []byte
 	serverInputChan chan *msgproto.Msg
 	id              int32
+	topic           string
 )
 
 func init() {
@@ -112,17 +113,20 @@ func handleUserInputMsg(ws *websocket.Conn, msg []byte) {
 
 		pbMsg := server.PbMsgFactory(id, "", "", int32(server.LOGIN))
 		err := msgCodec.Send(ws, pbMsg)
-		checkErr("send in handleUserInputMsg", err)
+		checkErr("send in handleUserInputMsg at login", err)
 
-	}
-	// if connect XXX
-	if string(msg[:len("connect")]) == "connect" {
-		topic := strings.TrimSpace(string(msg[len("connect"):]))
+	} else if string(msg[:len("connect")]) == "connect" {
+		topic = strings.TrimSpace(string(msg[len("connect"):]))
 		pbMsg := server.PbMsgFactory(id, topic, "", int32(server.CONNECT))
 		err := msgCodec.Send(ws, pbMsg)
-		checkErr("send in handleUserInputMsg", err)
+		checkErr("send in handleUserInputMsg at connect", err)
+	} else {
+
+		// others are msg content
+		pbMsg := server.PbMsgFactory(id, topic, string(msg), int32(server.MSG_CONTENT))
+		err := msgCodec.Send(ws, pbMsg)
+		checkErr("send in handleUserInputMsg at MSG_CONTENT", err)
 	}
-	// test connect first
 }
 
 func handlerServerInputMsg(msg *msgproto.Msg) {
@@ -132,6 +136,10 @@ func handlerServerInputMsg(msg *msgproto.Msg) {
 		fmt.Print(msg.GetContent())
 	case server.CONNECT:
 		fmt.Println(msg.GetContent())
+		topic = msg.GetTopic()
+	case server.MSG_CONTENT:
+		fmt.Printf("from : %s : \n %s \n", msg.GetTopic(), msg.GetContent())
+		topic = msg.GetTopic()
 	default:
 		log.Println("error, msg type wrong in handlerServerInputMsg ")
 	}
