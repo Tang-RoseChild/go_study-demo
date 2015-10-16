@@ -118,6 +118,16 @@ func handleUserInputMsg(ws *websocket.Conn, msg []byte) {
 		pbMsg := server.PbMsgFactory(id, topic, "", int32(server.CONNECT))
 		err := msgCodec.Send(ws, pbMsg)
 		checkErr("send in handleUserInputMsg at connect", err)
+	} else if string(msg[:len("chatroom")]) == "chatroom" {
+		topic = strings.TrimSpace(string(msg[len("chatroom"):]))
+		pbMsg := server.PbMsgFactory(id, topic, "", int32(server.MSG_CHATROOM))
+		err := msgCodec.Send(ws, pbMsg)
+		checkErr("send in handleUserInputMsg at chatroom", err)
+	} else if string(msg[:len("room")]) == "room" {
+
+		pbMsg := server.PbMsgFactory(id, topic, string(msg[len("room"):]), int32(server.MSG_CHATROOM))
+		err := msgCodec.Send(ws, pbMsg)
+		checkErr("send in handleUserInputMsg at chatroom", err)
 	} else {
 
 		// others are msg content
@@ -134,10 +144,13 @@ func handlerServerInputMsg(msg *msgproto.Msg) {
 		fmt.Print(msg.GetContent())
 	case server.CONNECT:
 		fmt.Println(msg.GetContent())
-		topic = msg.GetTopic()
+		topic = msg.GetTopic() // in case of connected by others
 	case server.MSG_CONTENT:
 		fmt.Printf("from : %s : \n %s \n", msg.GetTopic(), msg.GetContent())
-		topic = msg.GetTopic()
+		topic = msg.GetTopic() // in case of connected by others
+	case server.MSG_CHATROOM:
+		fmt.Printf("ChatRoom : %s : \n %s \n", msg.GetTopic(), msg.GetContent())
+		topic = msg.GetTopic() // in case of connected by others
 	default:
 		log.Println("error, msg type wrong in handlerServerInputMsg ")
 	}

@@ -20,19 +20,23 @@ const (
 	CONNECT
 	DISCONNECT
 	MSG_CONTENT
+	MSG_CHATROOM
 )
 
 var (
-	clients  map[int32]*websocket.Conn // for store all clients
-	msgCodec websocket.Codec
+	clients      map[int32]*websocket.Conn           // for store all clients
+	topicclients map[string]map[*websocket.Conn]bool // for store the same topic clients
+	msgCodec     websocket.Codec
 )
 
 func init() {
 	clients = make(map[int32]*websocket.Conn, 1<<5)
+	topicclients = make(map[string]map[*websocket.Conn]bool, 1<<5) // if not init,it will be nil
 	msgCodec = websocket.Codec{
 		Marshal:   PbMarshal,
 		Unmarshal: PbUnmarshal,
 	}
+
 }
 
 func Run(addr string) error {
@@ -60,6 +64,7 @@ func wsserver(ws *websocket.Conn) {
 		msg msgproto.Msg
 		err error
 		id  int32
+		// topic string
 	)
 	for {
 		err = msgCodec.Receive(ws, &msg)
@@ -67,6 +72,7 @@ func wsserver(ws *websocket.Conn) {
 		if err != nil {
 			break
 		}
+		// add client and topic client
 		id = msg.GetId()
 		if _, ok := clients[id]; !ok {
 			clients[id] = ws
@@ -123,6 +129,34 @@ func handleMsg(msg msgproto.Msg, ws *websocket.Conn) {
 
 		err = msgCodec.Send(toClient, pbMsg)
 		checkErr("Send at MSG_CONTENT case of handleMsg", err)
+	case MSG_CHATROOM:
+		topic := msg.GetTopic()
+		if v, ok := topicclients[topic]; ok {
+			// if not exists
+			if _, ok := v[ws]; !ok {
+				// add
+				v[ws] = true
+			}
+
+		} else {
+			topicclients[topic] = map[*websocket.Conn]bool{ws: true}
+		}
+
+		// check topic exist or not
+		if v, ok := topicclients[topic]; ok {
+			for c, _ := range v {
+
+				err := msgCodec.Send(c, &msg)
+				checkErr("Send at MSG_CHATROOM case of handleMsg", err)
+			}
+
+		} else {
+			pbMsg := PbMsgFactory(int32(msg.GetId()), strconv.Itoa(int(msg.GetId())), "chatroom doesn't exist", msg.GetType())
+			err := msgCodec.Send(clients[msg.GetId()], pbMsg)
+			checkErr("Send at MSG_CHATROOM case of handleMsg", err)
+		}
+		fmt.Println("topicclients : ", topicclients)
+		// send back msg
 	default:
 		log.Printf("msg type not supported : %d \n", msg.GetType())
 	}
